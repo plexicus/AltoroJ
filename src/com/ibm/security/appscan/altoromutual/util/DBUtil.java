@@ -329,32 +329,52 @@ public class DBUtil {
 			/* Credit card account balance is the amount owed, not amount owned 
 			 * (reverse of other accounts). Therefore we have to process balances differently*/
 			if (debitAccount.getAccountId() == userCC)
-				debitAmount = -debitAmount;
+			debitAmount = -debitAmount;
 		
-			//create transaction record
-			statement.execute("INSERT INTO TRANSACTIONS (ACCOUNTID, DATE, TYPE, AMOUNT) VALUES ("+debitAccount.getAccountId()+",'"+date+"',"+((debitAccount.getAccountId() == userCC)?"'Cash Advance'":"'Withdrawal'")+","+debitAmount+")," +
-					  "("+creditAccount.getAccountId()+",'"+date+"',"+((creditAccount.getAccountId() == userCC)?"'Payment'":"'Deposit'")+","+creditAmount+")"); 	
-
-			Log4AltoroJ.getInstance().logTransaction(debitAccount.getAccountId()+" - "+ debitAccount.getAccountName(), creditAccount.getAccountId()+" - "+ creditAccount.getAccountName(), amount);
-			
-			if (creditAccount.getAccountId() == userCC)
-				 creditAmount = -creditAmount;
-			
-			//add cash advance fee since the money transfer was made from the credit card 
-			if (debitAccount.getAccountId() == userCC){
-				statement.execute("INSERT INTO TRANSACTIONS (ACCOUNTID, DATE, TYPE, AMOUNT) VALUES ("+debitAccount.getAccountId()+",'"+date+"','Cash Advance Fee',"+CASH_ADVANCE_FEE+")");
-				debitAmount += CASH_ADVANCE_FEE;
-				Log4AltoroJ.getInstance().logTransaction(String.valueOf(userCC), "N/A", CASH_ADVANCE_FEE);
-			}
-						
-			//update account balances
-			statement.execute("UPDATE ACCOUNTS SET BALANCE = " + (debitAccount.getBalance()+debitAmount) + " WHERE ACCOUNT_ID = " + debitAccount.getAccountId());
-			statement.execute("UPDATE ACCOUNTS SET BALANCE = " + (creditAccount.getBalance()+creditAmount) + " WHERE ACCOUNT_ID = " + creditAccount.getAccountId());
-			
-			return null;
-			
-		} catch (SQLException e) {
-			return "Transaction failed. Please try again later.";
+		//create transaction record
+		PreparedStatement pstmt = connection.prepareStatement("INSERT INTO TRANSACTIONS (ACCOUNTID, DATE, TYPE, AMOUNT) VALUES (?, ?, ?, ?), (?, ?, ?, ?)");
+		pstmt.setInt(1, debitAccount.getAccountId());
+		pstmt.setString(2, date);
+		pstmt.setString(3, (debitAccount.getAccountId() == userCC) ? "Cash Advance" : "Withdrawal");
+		pstmt.setDouble(4, debitAmount);
+		pstmt.setInt(5, creditAccount.getAccountId());
+		pstmt.setString(6, date);
+		pstmt.setString(7, (creditAccount.getAccountId() == userCC) ? "Payment" : "Deposit");
+		pstmt.setDouble(8, creditAmount);
+		pstmt.executeUpdate();
+		
+		Log4AltoroJ.getInstance().logTransaction(debitAccount.getAccountId()+" - "+ debitAccount.getAccountName(), creditAccount.getAccountId()+" - "+ creditAccount.getAccountName(), amount);
+		
+		if (creditAccount.getAccountId() == userCC)
+			 creditAmount = -creditAmount;
+		
+		//add cash advance fee since the money transfer was made from the credit card 
+		if (debitAccount.getAccountId() == userCC){
+			PreparedStatement pstmtFee = connection.prepareStatement("INSERT INTO TRANSACTIONS (ACCOUNTID, DATE, TYPE, AMOUNT) VALUES (?, ?, ?, ?)");
+			pstmtFee.setInt(1, debitAccount.getAccountId());
+			pstmtFee.setString(2, date);
+			pstmtFee.setString(3, "Cash Advance Fee");
+			pstmtFee.setDouble(4, CASH_ADVANCE_FEE);
+			pstmtFee.executeUpdate();
+			debitAmount += CASH_ADVANCE_FEE;
+			Log4AltoroJ.getInstance().logTransaction(String.valueOf(userCC), "N/A", CASH_ADVANCE_FEE);
+		}
+					
+		//update account balances
+		PreparedStatement pstmtUpdateDebit = connection.prepareStatement("UPDATE ACCOUNTS SET BALANCE = ? WHERE ACCOUNT_ID = ?");
+		pstmtUpdateDebit.setDouble(1, debitAccount.getBalance() + debitAmount);
+		pstmtUpdateDebit.setInt(2, debitAccount.getAccountId());
+		pstmtUpdateDebit.executeUpdate();
+		
+		PreparedStatement pstmtUpdateCredit = connection.prepareStatement("UPDATE ACCOUNTS SET BALANCE = ? WHERE ACCOUNT_ID = ?");
+		pstmtUpdateCredit.setDouble(1, creditAccount.getBalance() + creditAmount);
+		pstmtUpdateCredit.setInt(2, creditAccount.getAccountId());
+		pstmtUpdateCredit.executeUpdate();
+		
+		return null;
+		
+	} catch (SQLException e) {
+		return "Transaction failed. Please try again later.";
 		}
 	}
 
