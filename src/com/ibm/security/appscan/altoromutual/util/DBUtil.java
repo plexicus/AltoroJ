@@ -170,32 +170,34 @@ public class DBUtil {
 	 * Retrieve feedback details
 	 * @param feedbackId specific feedback ID to retrieve or Feedback.FEEDBACK_ALL to retrieve all stored feedback submissions
 	 */
-	public static ArrayList<Feedback> getFeedback (long feedbackId){
-		ArrayList<Feedback> feedbackList = new ArrayList<Feedback>();
-		
-		try { 
-			Connection connection = getConnection();
-			Statement statement = connection.createStatement();
-			
-			String query = "SELECT * FROM FEEDBACK";
-			
-			if (feedbackId != Feedback.FEEDBACK_ALL){
-				query = query + " WHERE FEEDBACK_ID = "+ feedbackId +"";
-			}
-			
-			ResultSet resultSet = statement.executeQuery(query);
-	
-			while (resultSet.next()){
-				String name = resultSet.getString("NAME");
-				String email = resultSet.getString("EMAIL");
-				String subject = resultSet.getString("SUBJECT");
-				String message = resultSet.getString("COMMENTS");
-				long id = resultSet.getLong("FEEDBACK_ID");
-				Feedback feedback = new Feedback(id, name, email, subject, message);
-				feedbackList.add(feedback);
-			}
-		} catch (SQLException e) {
-			Log4AltoroJ.getInstance().logError("Error retrieving feedback: " + e.getMessage());
+public static ArrayList<Feedback> getFeedback (long feedbackId){
+    ArrayList<Feedback> feedbackList = new ArrayList<Feedback>();
+    
+    try { 
+        Connection connection = getConnection();
+        String query = "SELECT * FROM FEEDBACK WHERE FEEDBACK_ID = ?";
+        PreparedStatement preparedStatement = connection.prepareStatement(query);
+        
+        if (feedbackId != Feedback.FEEDBACK_ALL){
+            preparedStatement.setLong(1, feedbackId);
+        } else {
+            query = "SELECT * FROM FEEDBACK";
+            preparedStatement = connection.prepareStatement(query);
+        }
+        
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        while (resultSet.next()){
+            String name = resultSet.getString("NAME");
+            String email = resultSet.getString("EMAIL");
+            String subject = resultSet.getString("SUBJECT");
+            String message = resultSet.getString("COMMENTS");
+            long id = resultSet.getLong("FEEDBACK_ID");
+            Feedback feedback = new Feedback(id, name, email, subject, message);
+            feedbackList.add(feedback);
+        }
+    } catch (SQLException e) {
+        Log4AltoroJ.getInstance().logError("Error retrieving feedback: " + e.getMessage());
 		}
 		
 		return feedbackList;
