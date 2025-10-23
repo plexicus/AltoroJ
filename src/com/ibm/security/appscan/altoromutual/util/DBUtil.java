@@ -22,6 +22,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -214,14 +215,20 @@ public class DBUtil {
 			return false; 
 		
 		Connection connection = getConnection();
-		Statement statement = connection.createStatement();
+		String sql = "SELECT COUNT(*) FROM PEOPLE WHERE USER_ID = ? AND PASSWORD = ?";
 		
-		ResultSet resultSet =statement.executeQuery("SELECT COUNT(*)FROM PEOPLE WHERE USER_ID = '"+ user +"' AND PASSWORD='" + password + "'"); /* BAD - user input should always be sanitized */
-		
-		if (resultSet.next()){
-			
-				if (resultSet.getInt(1) > 0)
-					return true;
+		try (PreparedStatement ps = connection.prepareStatement(sql)) {
+			ps.setString(1, user);
+			ps.setString(2, password);
+			try (ResultSet resultSet = ps.executeQuery()){
+				if (resultSet.next()){
+					if (resultSet.getInt(1) > 0)
+						return true;
+				}
+			}
+		} catch (SQLException e) {
+			Log4AltoroJ.getInstance().logError("Error validating user: " + e.getMessage());
+			throw e;
 		}
 		return false;
 	}
