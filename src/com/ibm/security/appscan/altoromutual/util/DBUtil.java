@@ -271,17 +271,30 @@ public class DBUtil {
 		if (username == null || username.trim().length() == 0)
 			return null; 
 		
-		Connection connection = getConnection();
-		Statement statement = connection.createStatement();
-		ResultSet resultSet =statement.executeQuery("SELECT ACCOUNT_ID, ACCOUNT_NAME, BALANCE FROM ACCOUNTS WHERE USERID = '"+ username +"' "); /* BAD - user input should always be sanitized */
-
+		// perform input validation: allow only alphanumeric, underscore, hyphen, and dot, length 1..50
+		String trimmed = username.trim();
+		if (!trimmed.matches("^[A-Za-z0-9._-]{1,50}$")) {
+			Log4AltoroJ.getInstance().logError("Invalid username format: " + username);
+			return null;
+		}
+		
+		String query = "SELECT ACCOUNT_ID, ACCOUNT_NAME, BALANCE FROM ACCOUNTS WHERE USERID = ?";
 		ArrayList<Account> accounts = new ArrayList<Account>(3);
-		while (resultSet.next()){
-			long accountId = resultSet.getLong("ACCOUNT_ID");
-			String name = resultSet.getString("ACCOUNT_NAME");
-			double balance = resultSet.getDouble("BALANCE"); 
-			Account newAccount = new Account(accountId, name, balance);
-			accounts.add(newAccount);
+		Connection connection = getConnection();
+		try (java.sql.PreparedStatement ps = connection.prepareStatement(query)) {
+			ps.setString(1, trimmed);
+			try (ResultSet resultSet = ps.executeQuery()) {
+				while (resultSet.next()){
+					long accountId = resultSet.getLong("ACCOUNT_ID");
+					String name = resultSet.getString("ACCOUNT_NAME");
+					double balance = resultSet.getDouble("BALANCE"); 
+					Account newAccount = new Account(accountId, name, balance);
+					accounts.add(newAccount);
+				}
+			}
+		} catch (SQLException e) {
+			Log4AltoroJ.getInstance().logError("Error retrieving accounts for user " + trimmed + ": " + e.getMessage());
+			throw e;
 		}
 		
 		return accounts.toArray(new Account[accounts.size()]);
